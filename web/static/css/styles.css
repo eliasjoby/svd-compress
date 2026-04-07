@@ -161,6 +161,22 @@ h1 {
   font-family: "DM Serif Display", serif;
 }
 
+.modal-link-wrap {
+  margin: 8px 0 0;
+}
+
+.modal-link {
+  color: #8f3145;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid #d9929f;
+}
+
+.modal-link:hover {
+  color: #742236;
+  border-bottom-color: #bf6f7e;
+}
+
 .modal-sub {
   margin: 6px 0 0;
   color: #9a4f5c;
