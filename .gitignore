@@ -29,7 +29,3 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
-
-# Generated outputs
-compressed_*.png
-compressed_*.jpg
