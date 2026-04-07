@@ -62,8 +62,10 @@ def main():
 
     # Save in multiple formats for fair file-size comparisons.
     compressed_img = Image.fromarray(compressed_img.astype("uint8"))
-    output_png = f"compressed_k{k}.png"
-    output_jpg = f"compressed_k{k}.jpg"
+    output_dir = os.path.join("examples", "outputs")
+    os.makedirs(output_dir, exist_ok=True)
+    output_png = os.path.join(output_dir, f"compressed_k{k}.png")
+    output_jpg = os.path.join(output_dir, f"compressed_k{k}.jpg")
 
     compressed_img.save(output_png)
     compressed_img.save(output_jpg, format="JPEG", quality=85, optimize=True)

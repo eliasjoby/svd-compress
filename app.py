@@ -6,7 +6,7 @@ import numpy as np
 from flask import Flask, redirect, render_template, request, url_for
 from PIL import Image
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
 
 
 MAX_PIXELS = 1200 * 1200

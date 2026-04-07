@@ -45,7 +45,7 @@ This project is a practical demonstration of how classroom linear algebra transl
 
 | Original Input | SVD Output (PNG, k=50) | SVD Output (JPEG, k=50) |
 |---|---|---|
-| ![Original image](input.jpg) | ![Compressed PNG](compressed_k50.png) | ![Compressed JPEG](compressed_k50.jpg) |
+| ![Original image](docs/screenshots/input.jpg) | ![Compressed PNG](docs/screenshots/compressed_k50.png) | ![Compressed JPEG](docs/screenshots/compressed_k50.jpg) |
 
 
 ## Why a "Compressed" File Can Still Be Larger
@@ -65,8 +65,8 @@ From a sample run:
 
 - Theoretical SVD ratio: **16.7%**
 - Original (`input.jpg`): **63.2 KB**
-- Reconstructed PNG (`compressed_k50.png`): **193.0 KB** (305.2% of original)
-- Reconstructed JPEG (`compressed_k50.jpg`): **70.8 KB** (111.9% of original)
+- Reconstructed PNG (`examples/outputs/compressed_k50.png`): **193.0 KB** (305.2% of original)
+- Reconstructed JPEG (`examples/outputs/compressed_k50.jpg`): **70.8 KB** (111.9% of original)
 
 ## Tech Stack
 
@@ -78,20 +78,31 @@ From a sample run:
 ## Project Structure
 
 ```text
-img-Compress/
-|- assets/
-|  |- banner.svg
-|- static/
-|  |- styles.css
-|- templates/
-|  |- index.html
+svd-compress/
 |- app.py
-|- input.jpg
-|- compressed_k50.png
-|- compressed_k50.jpg
 |- svd_compression.py
-|- req.txt
+|- examples/
+|  |- outputs/
+|     |- compressed_k50.png
+|     |- compressed_k50.jpg
+|- docs/
+|  |- screenshots/
+|     |- input.jpg
+|     |- compressed_k50.png
+|     |- compressed_k50.jpg
+|- web/
+|  |- templates/
+|  |  |- index.html
+|  |- static/
+|     |- css/
+|     |  |- styles.css
+|     |- js/
+|        |- ui.js
+|- input.jpg
+|- requirements.txt
 |- README.md
+|- LICENSE
+|- .gitignore
 ```
 
 ## Setup
@@ -99,7 +110,7 @@ img-Compress/
 Install dependencies:
 
 ```bash
-pip install -r req.txt
+pip install -r requirements.txt
 ```
 
 ## Run (Web UI)

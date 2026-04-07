@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
   </head>
   <body>
     <div class="bg-glow bg-glow-left"></div>
@@ -114,40 +114,6 @@
       <p class="modal-sub">CSE, NITC</p>
     </section>
 
-    <script>
-      (function () {
-        const openBtn = document.getElementById("open-info-modal");
-        const closeBtn = document.getElementById("close-info-modal");
-        const overlay = document.getElementById("info-overlay");
-        const modal = document.getElementById("info-modal");
-
-        function openModal() {
-          overlay.hidden = false;
-          modal.hidden = false;
-          document.body.classList.add("modal-open");
-        }
-
-        function closeModal() {
-          overlay.hidden = true;
-          modal.hidden = true;
-          document.body.classList.remove("modal-open");
-        }
-
-        openBtn.addEventListener("click", openModal);
-        closeBtn.addEventListener("click", closeModal);
-        overlay.addEventListener("click", closeModal);
-
-        document.addEventListener("keydown", function (event) {
-          if (event.key === "Escape" && !modal.hidden) {
-            closeModal();
-          }
-        });
-
-        const nav = performance.getEntriesByType("navigation")[0];
-        if (nav && nav.type === "reload" && window.location.search.includes("r=")) {
-          window.location.replace(window.location.pathname);
-        }
-      })();
-    </script>
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
   </body>
 </html>
