@@ -8,8 +8,9 @@ This project was built by applying concepts from **Mathematics III (Semester 3)*
 - Converts an input image to grayscale matrix form
 - Performs SVD with NumPy and keeps top $k$ singular components
 - Reconstructs a low-rank approximation of the image
-- Compares theoretical matrix compression vs actual saved file sizes
-- Saves outputs as both PNG and JPEG for real-world comparison
+- Compresses reconstructed output using selectable codecs (JPEG/WebP/PNG)
+- Exports an additional compressed `.npz` file with SVD factors ($U_k,\Sigma_k,V_k^T$)
+- Reports theoretical matrix ratio and real on-disk savings separately
 - Includes a pastel-themed web UI to upload images and preview SVD output
 
 ## Mathematics Behind the Project
@@ -58,6 +59,20 @@ This is one of the key takeaways of the project:
 - JPEG is lossy and often remains smaller for natural images.
 
 So mathematical compression and on-disk file size are related but not equivalent.
+
+## Web App Compression Behavior
+
+The web UI now provides two independent compression artifacts per run:
+
+- Compressed image file: encoded as JPEG/WebP/PNG based on your selection
+- SVD factor archive: `.npz` package containing $U_k$, singular values, and $V_k^T$
+
+This means you can compare:
+
+- Practical file compression for viewing/sharing (image codec)
+- Compact mathematical representation for reconstruction experiments (`.npz`)
+
+For most natural photos, JPEG/WebP gives real file-size reduction at moderate quality settings.
 
 ## Current Sample Output (k = 50)
 
@@ -152,14 +167,16 @@ If using local virtual environment:
 5. Clip values to valid pixel range
 6. Display original and reconstructed image
 7. Print theoretical SVD compression ratio
-8. Save reconstructed image as PNG and JPEG
-9. Print practical disk-size report
+8. Save reconstructed image as PNG, JPEG, and WebP
+9. Save SVD factors as compressed `.npz`
+10. Print practical disk-size report
 
 ## Limitations
 
 - Grayscale pipeline only
 - Single fixed value of `k` in code
 - No quality metric (PSNR/SSIM) yet
+- `.npz` is for scientific storage/reconstruction, not direct browser display
 
 ## Author
 

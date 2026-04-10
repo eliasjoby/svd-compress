@@ -55,6 +55,31 @@
             </div>
           </label>
 
+          <label class="field">
+            <span>Output format</span>
+            <select id="format-select" name="output_format">
+              <option value="JPEG" {% if output_format == 'JPEG' %}selected{% endif %}>JPEG (lossy)</option>
+              <option value="WEBP" {% if output_format == 'WEBP' %}selected{% endif %}>WebP (lossy)</option>
+              <option value="PNG" {% if output_format == 'PNG' %}selected{% endif %}>PNG (lossless)</option>
+            </select>
+          </label>
+
+          <label class="field" id="quality-field" {% if output_format == 'PNG' %}style="display: none;"{% endif %}>
+            <span>Quality</span>
+            <div class="k-controls">
+              <input
+                id="quality-slider"
+                type="range"
+                name="quality"
+                min="1"
+                max="95"
+                value="{{ quality }}"
+                oninput="document.getElementById('quality-value').textContent = this.value"
+              />
+              <strong id="quality-value">{{ quality }}</strong>
+            </div>
+          </label>
+
           <button type="submit" class="btn-primary">Compress Image</button>
         </form>
 
@@ -86,6 +111,26 @@
             <p class="stat-label">Compressed size</p>
             <p class="stat-value">{{ result.compressed_size }}</p>
           </div>
+          <div>
+            <p class="stat-label">Compressed savings</p>
+            <p class="stat-value">{{ result.compressed_savings }}</p>
+          </div>
+          <div>
+            <p class="stat-label">SVD NPZ size</p>
+            <p class="stat-value">{{ result.npz_size }}</p>
+          </div>
+          <div>
+            <p class="stat-label">SVD NPZ savings</p>
+            <p class="stat-value">{{ result.npz_savings }}</p>
+          </div>
+          <div>
+            <p class="stat-label">Output format</p>
+            <p class="stat-value">{{ result.output_format }}</p>
+          </div>
+          <div>
+            <p class="stat-label">Quality</p>
+            <p class="stat-value">{{ result.quality }}</p>
+          </div>
         </div>
 
         <div class="image-grid">
@@ -94,10 +139,13 @@
             <img src="{{ result.original }}" alt="Original grayscale image" />
           </article>
           <article class="image-card">
-            <h2>Compressed (k={{ k }})</h2>
+            <h2>Compressed (k={{ k }}, {{ result.output_format }})</h2>
             <img src="{{ result.compressed }}" alt="Compressed grayscale image" />
-            <a href="{{ result.compressed }}" download="{{ result.download_name }}" class="btn-download"
+            <a href="{{ result.compressed_download }}" download="{{ result.download_name }}" class="btn-download"
               >Download compressed image</a
+            >
+            <a href="{{ result.npz_download }}" download="{{ result.download_npz_name }}" class="btn-download"
+              >Download SVD factors (.npz)</a
             >
           </article>
         </div>

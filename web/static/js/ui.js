@@ -34,4 +34,16 @@
   if (nav && nav.type === "reload" && window.location.search.includes("r=")) {
     window.location.replace(window.location.pathname);
   }
+
+  const formatSelect = document.getElementById("format-select");
+  const qualityField = document.getElementById("quality-field");
+
+  if (formatSelect && qualityField) {
+    const syncQualityVisibility = function () {
+      qualityField.style.display = formatSelect.value === "PNG" ? "none" : "";
+    };
+
+    formatSelect.addEventListener("change", syncQualityVisibility);
+    syncQualityVisibility();
+  }
 })();
