@@ -15,8 +15,8 @@ MAX_CACHED_RESULTS = 10
 SUPPORTED_FORMATS = {"PNG", "JPEG", "WEBP"}
 
 
-def load_grayscale_image(file_storage):
-    image = Image.open(BytesIO(file_storage)).convert("L")
+def load_rgb_image(file_storage):
+    image = Image.open(BytesIO(file_storage)).convert("RGB")
     image.thumbnail((1200, 1200))
     return np.array(image)
 
@@ -30,8 +30,26 @@ def compress_image_svd(img_matrix, k):
     return compressed, u_k, s_k, vt_k
 
 
+def compress_color_image_svd(img_array, k):
+    channel_factors = []
+    reconstructed = np.zeros_like(img_array, dtype=np.float32)
+
+    for channel_idx in range(img_array.shape[2]):
+        channel_matrix = img_array[:, :, channel_idx]
+        channel_compressed, u_k, s_k, vt_k = compress_image_svd(channel_matrix, k)
+        reconstructed[:, :, channel_idx] = channel_compressed
+        channel_factors.append((u_k, s_k, vt_k))
+
+    return reconstructed, channel_factors
+
+
 def reconstruct_from_factors(u_k, s_k, vt_k):
     return (u_k * s_k) @ vt_k
+
+
+def reconstruct_color_from_factors(channel_factors):
+    channels = [reconstruct_from_factors(u_k, s_k, vt_k) for u_k, s_k, vt_k in channel_factors]
+    return np.stack(channels, axis=2)
 
 
 def image_to_base64_url(image_bytes, fmt):
@@ -60,15 +78,24 @@ def image_to_encoded_bytes(image, output_format, quality=None):
     return buffer.getvalue()
 
 
-def factors_to_npz_bytes(u_k, s_k, vt_k, original_shape, k):
+def factors_to_npz_bytes(channel_factors, original_shape, k):
+    (u_r, s_r, vt_r), (u_g, s_g, vt_g), (u_b, s_b, vt_b) = channel_factors
+
     buffer = BytesIO()
     np.savez_compressed(
         buffer,
-        u=u_k.astype(np.float32),
-        s=s_k.astype(np.float32),
-        vt=vt_k.astype(np.float32),
+        u_r=u_r.astype(np.float32),
+        s_r=s_r.astype(np.float32),
+        vt_r=vt_r.astype(np.float32),
+        u_g=u_g.astype(np.float32),
+        s_g=s_g.astype(np.float32),
+        vt_g=vt_g.astype(np.float32),
+        u_b=u_b.astype(np.float32),
+        s_b=s_b.astype(np.float32),
+        vt_b=vt_b.astype(np.float32),
         original_shape=np.array(original_shape, dtype=np.int32),
         k=np.array([k], dtype=np.int32),
+        channels=np.array([len(channel_factors)], dtype=np.int32),
         version=np.array([1], dtype=np.int32),
     )
     return buffer.getvalue()
@@ -83,9 +110,10 @@ def human_readable_size(byte_count):
 
 
 def compression_stats(img_shape, k):
-    m, n = img_shape
-    uncompressed_size = m * n
-    compressed_size = k * (1 + m + n)
+    m, n = img_shape[:2]
+    channels = img_shape[2] if len(img_shape) == 3 else 1
+    uncompressed_size = m * n * channels
+    compressed_size = channels * k * (1 + m + n)
     ratio = compressed_size / uncompressed_size
     return {
         "ratio": ratio,
@@ -159,8 +187,8 @@ def index():
                 return render_template("index.html", **context)
 
             original_file_size = len(file_bytes)
-            original_matrix = load_grayscale_image(file_bytes)
-            m, n = original_matrix.shape
+            original_array = load_rgb_image(file_bytes)
+            m, n = original_array.shape[:2]
 
             if output_format not in SUPPORTED_FORMATS:
                 context["error"] = "Unsupported output format selected."
@@ -179,22 +207,22 @@ def index():
                 context["error"] = f"k must be between 1 and {max_rank} for this image."
                 return render_template("index.html", **context)
 
-            _, u_k, s_k, vt_k = compress_image_svd(original_matrix, k)
+            _, channel_factors = compress_color_image_svd(original_array, k)
 
-            round_trip_matrix = reconstruct_from_factors(u_k, s_k, vt_k)
-            round_trip_matrix = np.clip(round_trip_matrix, 0, 255)
+            round_trip_array = reconstruct_color_from_factors(channel_factors)
+            round_trip_array = np.clip(round_trip_array, 0, 255)
 
-            original_img = Image.fromarray(original_matrix.astype("uint8"))
-            compressed_img = Image.fromarray(round_trip_matrix.astype("uint8"))
+            original_img = Image.fromarray(original_array.astype("uint8"), mode="RGB")
+            compressed_img = Image.fromarray(round_trip_array.astype("uint8"), mode="RGB")
             original_png = image_to_encoded_bytes(original_img, "PNG")
             compressed_bytes = image_to_encoded_bytes(
                 compressed_img,
                 output_format,
                 quality=quality if output_format in {"JPEG", "WEBP"} else None,
             )
-            npz_bytes = factors_to_npz_bytes(u_k, s_k, vt_k, original_matrix.shape, k)
+            npz_bytes = factors_to_npz_bytes(channel_factors, original_array.shape, k)
 
-            stats = compression_stats(original_matrix.shape, k)
+            stats = compression_stats(original_array.shape, k)
             compressed_file_size = len(compressed_bytes)
             npz_file_size = len(npz_bytes)
 
