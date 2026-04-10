@@ -27,7 +27,7 @@
       <section class="hero card reveal">
         <h1>SVD Image Compressor</h1>
         <p class="hero-copy">
-          Upload an image, choose rank <strong>k</strong>, and preview a color-preserving
+          Upload an image, choose rank <strong>k</strong>, and preview a grayscale
           low-rank reconstruction using singular value decomposition.
         </p>
       </section>
@@ -135,12 +135,12 @@
 
         <div class="image-grid">
           <article class="image-card">
-            <h2>Original</h2>
-            <img src="{{ result.original }}" alt="Original image" />
+            <h2>Original (grayscale)</h2>
+            <img src="{{ result.original }}" alt="Original grayscale image" />
           </article>
           <article class="image-card">
             <h2>Compressed (k={{ k }}, {{ result.output_format }})</h2>
-            <img src="{{ result.compressed }}" alt="Compressed image" />
+            <img src="{{ result.compressed }}" alt="Compressed grayscale image" />
             <a href="{{ result.compressed_download }}" download="{{ result.download_name }}" class="btn-download"
               >Download compressed image</a
             >
