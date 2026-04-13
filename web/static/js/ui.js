@@ -50,4 +50,19 @@
     syncQualityVisibility();
     formatSelect.addEventListener("change", syncQualityVisibility);
   }
+
+  const imageInput = document.getElementById("image-input");
+  const sourceTokenInput = document.getElementById("source-token");
+  const selectedImageName = document.getElementById("selected-image-name");
+
+  if (imageInput && selectedImageName) {
+    imageInput.addEventListener("change", function () {
+      if (this.files && this.files.length > 0) {
+        selectedImageName.textContent = "Selected image: " + this.files[0].name;
+        if (sourceTokenInput) {
+          sourceTokenInput.value = "";
+        }
+      }
+    });
+  }
 })();

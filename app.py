@@ -151,22 +151,23 @@ def index():
         "k": 50,
         "format": "JPEG",
         "quality": 75,
+        "source_token": "",
+        "source_filename": None,
     }
 
     if context["result"]:
         context["k"] = context["result"].get("k", 50)
         context["format"] = context["result"].get("format", "JPEG")
         context["quality"] = context["result"].get("quality", 75)
+        context["source_token"] = context["result"].get("source_token", "")
+        context["source_filename"] = context["result"].get("source_filename")
 
     if request.method == "POST":
         image_file = request.files.get("image")
+        source_token = request.form.get("source_token", "").strip()
         k = request.form.get("k", "50")
         output_format = request.form.get("format", "JPEG").upper()
         quality = request.form.get("quality", "75")
-
-        if not image_file or image_file.filename == "":
-            context["error"] = "Please choose an image first."
-            return render_template("index.html", **context)
 
         try:
             k = int(k)
@@ -191,10 +192,35 @@ def index():
         context["quality"] = quality
 
         try:
-            file_bytes = image_file.read()
-            if not file_bytes:
-                context["error"] = "Uploaded file is empty."
+            file_bytes = b""
+            source_filename = None
+
+            if image_file and image_file.filename:
+                file_bytes = image_file.read()
+                if not file_bytes:
+                    context["error"] = "Uploaded file is empty."
+                    return render_template("index.html", **context)
+
+                source_filename = image_file.filename
+                source_token = uuid.uuid4().hex
+                cache_set(
+                    f"source:{source_token}",
+                    {"bytes": file_bytes, "filename": source_filename},
+                )
+            elif source_token:
+                source_payload = RESULT_CACHE.get(f"source:{source_token}")
+                if not source_payload:
+                    context["error"] = "Previous image context expired. Please upload the image again."
+                    return render_template("index.html", **context)
+
+                file_bytes = source_payload["bytes"]
+                source_filename = source_payload.get("filename", "uploaded image")
+            else:
+                context["error"] = "Please choose an image first."
                 return render_template("index.html", **context)
+
+            context["source_token"] = source_token
+            context["source_filename"] = source_filename
 
             original_file_size = len(file_bytes)
             original_matrix = load_rgb_image(file_bytes)
@@ -256,6 +282,8 @@ def index():
                 "download_npz_url": url_for("download_result", kind="npz", token=npz_token),
                 "format": output_format,
                 "quality": quality,
+                "source_token": source_token,
+                "source_filename": source_filename,
                 "k": k,
             }
 

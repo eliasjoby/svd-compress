@@ -36,7 +36,15 @@
         <form method="post" enctype="multipart/form-data" class="form-grid">
           <label class="field">
             <span>Image file</span>
-            <input type="file" name="image" accept="image/*" required />
+            <input id="image-input" type="file" name="image" accept="image/*" />
+            <input type="hidden" name="source_token" id="source-token" value="{{ source_token }}" />
+            <small id="selected-image-name">
+              {% if source_filename %}
+                Current image: {{ source_filename }}
+              {% else %}
+                No image selected
+              {% endif %}
+            </small>
           </label>
 
           <label class="field">
