@@ -5,26 +5,26 @@ This project was built by applying concepts from **Mathematics III (Semester 3)*
 
 ## Quick Overview
 
-- Converts an input image to grayscale matrix form
+- Converts an input image to RGB matrix form
 - Performs SVD with NumPy and keeps top $k$ singular components
-- Reconstructs a low-rank approximation of the image
-- Compresses reconstructed output using selectable codecs (JPEG/WebP/PNG)
-- Exports an additional compressed `.npz` file with SVD factors ($U_k,\Sigma_k,V_k^T$)
-- Reports theoretical matrix ratio and real on-disk savings separately
+- Reconstructs a low-rank approximation while preserving color channels
+- Produces real compressed image files with selectable PNG, JPEG, or WebP output
+- Produces a compressed NPZ artifact containing SVD factors per channel
+- Reports actual byte-size deltas for both image output and NPZ output
 - Includes a pastel-themed web UI to upload images and preview SVD output
 
 ## Mathematics Behind the Project
 
-An image matrix $A \in \mathbb{R}^{m \times n}$ is decomposed as:
+For each RGB channel, an image matrix $A_c \in \mathbb{R}^{m \times n}$ is decomposed as:
 
 $$
-A = U\Sigma V^T
+A_c = U_c\Sigma_c V_c^T
 $$
 
-Using only top $k$ singular values gives:
+Using only top $k$ singular values per channel gives:
 
 $$
-A_k = U_k\Sigma_kV_k^T
+A_{c,k} = U_{c,k}\Sigma_{c,k}V_{c,k}^T
 $$
 
 This low-rank approximation reduces information while preserving major visual structure.
@@ -42,11 +42,19 @@ This project is a practical demonstration of how classroom linear algebra transl
 
 ## Result Screenshots
 
-### Input and Outputs
+### Input and Outputs (Generated from input.jpg)
 
-| Original Input | SVD Output (PNG, k=50) | SVD Output (JPEG, k=50) |
+| Original Input | Compressed (WEBP, k=30, q=55) | Compressed (JPEG, k=50, q=75) |
 |---|---|---|
-| ![Original image](docs/screenshots/input.jpg) | ![Compressed PNG](docs/screenshots/compressed_k50.png) | ![Compressed JPEG](docs/screenshots/compressed_k50.jpg) |
+| ![Original image](input.jpg) | ![Compressed WEBP](examples/outputs/compressed_k30.webp) | ![Compressed JPEG](examples/outputs/compressed_k50.jpg) |
+
+### Size Comparison for the Above Images
+
+| Variant | File | Size |
+|---|---|---|
+| Original | `input.jpg` | **98.2 KB** |
+| Compressed WEBP (k=30, q=55) | `examples/outputs/compressed_k30.webp` | **38.9 KB** (39.7% of original) |
+| Compressed JPEG (k=50, q=75) | `examples/outputs/compressed_k50.jpg` | **124.5 KB** (126.8% of original) |
 
 
 ## Why a "Compressed" File Can Still Be Larger
@@ -60,28 +68,19 @@ This is one of the key takeaways of the project:
 
 So mathematical compression and on-disk file size are related but not equivalent.
 
-## Web App Compression Behavior
+## Current Sample Output (input.jpg)
 
-The web UI now provides two independent compression artifacts per run:
+From recent command runs:
 
-- Compressed image file: encoded as JPEG/WebP/PNG based on your selection
-- SVD factor archive: `.npz` package containing $U_k$, singular values, and $V_k^T$
+- Run A: `python3 svd_compression.py --input input.jpg --k 50 --format JPEG --quality 75 --no-plot`
+	Original (`input.jpg`): **98.2 KB**
+	Output (`examples/outputs/compressed_k50.jpg`): **124.5 KB** (126.8% of original)
+- Run B: `python3 svd_compression.py --input input.jpg --k 30 --format WEBP --quality 55 --no-plot`
+	Original (`input.jpg`): **98.2 KB**
+	Output (`examples/outputs/compressed_k30.webp`): **38.9 KB** (39.7% of original)
 
-This means you can compare:
-
-- Practical file compression for viewing/sharing (image codec)
-- Compact mathematical representation for reconstruction experiments (`.npz`)
-
-For most natural photos, JPEG/WebP gives real file-size reduction at moderate quality settings.
-
-## Current Sample Output (k = 50)
-
-From a sample run:
-
-- Theoretical SVD ratio: **16.7%**
-- Original (`input.jpg`): **63.2 KB**
-- Reconstructed PNG (`examples/outputs/compressed_k50.png`): **193.0 KB** (305.2% of original)
-- Reconstructed JPEG (`examples/outputs/compressed_k50.jpg`): **70.8 KB** (111.9% of original)
+In the web UI, you can now choose output codec and quality to get practical on-disk compression.
+You can also download SVD factors as NPZ, which represents matrix-factor compression directly.
 
 ## Tech Stack
 
@@ -98,13 +97,12 @@ svd-compress/
 |- svd_compression.py
 |- examples/
 |  |- outputs/
+|     |- compressed_k30.webp
 |     |- compressed_k50.png
 |     |- compressed_k50.jpg
-|- docs/
-|  |- screenshots/
-|     |- input.jpg
-|     |- compressed_k50.png
-|     |- compressed_k50.jpg
+|     |- compressed_k50.webp
+|     |- compressed_factors_k30.npz
+|     |- compressed_factors_k50.npz
 |- web/
 |  |- templates/
 |  |  |- index.html
@@ -161,22 +159,26 @@ If using local virtual environment:
 ## Script Workflow
 
 1. Read `input.jpg`
-2. Convert to grayscale
-3. Set `k = 50`
+2. Convert to RGB
+3. Set `k` and choose output format and quality
 4. Compute SVD and reconstruct image using top-$k$ components
 5. Clip values to valid pixel range
-6. Display original and reconstructed image
+6. Display original and reconstructed image (unless `--no-plot` is used)
 7. Print theoretical SVD compression ratio
-8. Save reconstructed image as PNG, JPEG, and WebP
-9. Save SVD factors as compressed `.npz`
+8. Save reconstructed image in selected format
+9. Save SVD factors as compressed NPZ
 10. Print practical disk-size report
+
+### CLI Example
+
+```bash
+python3 svd_compression.py --input input.jpg --k 30 --format WEBP --quality 55 --no-plot
+```
 
 ## Limitations
 
-- Grayscale pipeline only
-- Single fixed value of `k` in code
+- Large images can produce very large NPZ factor files
 - No quality metric (PSNR/SSIM) yet
-- `.npz` is for scientific storage/reconstruction, not direct browser display
 
 ## Author
 

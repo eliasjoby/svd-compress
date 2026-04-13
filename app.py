@@ -3,7 +3,7 @@ import uuid
 from io import BytesIO
 
 import numpy as np
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, Response, redirect, render_template, request, url_for
 from PIL import Image
 
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
@@ -12,7 +12,6 @@ app = Flask(__name__, template_folder="web/templates", static_folder="web/static
 MAX_PIXELS = 1200 * 1200
 RESULT_CACHE = {}
 MAX_CACHED_RESULTS = 10
-SUPPORTED_FORMATS = {"PNG", "JPEG", "WEBP"}
 
 
 def load_rgb_image(file_storage):
@@ -21,35 +20,25 @@ def load_rgb_image(file_storage):
     return np.array(image)
 
 
-def compress_image_svd(img_matrix, k):
+def compress_channel_svd(img_matrix, k):
     u, s, vt = np.linalg.svd(img_matrix, full_matrices=False)
     u_k = u[:, :k]
     s_k = s[:k]
     vt_k = vt[:k, :]
-    compressed = (u_k * s_k) @ vt_k
-    return compressed, u_k, s_k, vt_k
+    return (u_k * s_k) @ vt_k, u_k, s_k, vt_k
 
 
-def compress_color_image_svd(img_array, k):
+def compress_image_svd(img_matrix, k):
     channel_factors = []
-    reconstructed = np.zeros_like(img_array, dtype=np.float32)
+    reconstructed = np.zeros_like(img_matrix, dtype=np.float32)
 
-    for channel_idx in range(img_array.shape[2]):
-        channel_matrix = img_array[:, :, channel_idx]
-        channel_compressed, u_k, s_k, vt_k = compress_image_svd(channel_matrix, k)
-        reconstructed[:, :, channel_idx] = channel_compressed
+    for channel_idx in range(img_matrix.shape[2]):
+        channel = img_matrix[:, :, channel_idx]
+        compressed_channel, u_k, s_k, vt_k = compress_channel_svd(channel, k)
+        reconstructed[:, :, channel_idx] = compressed_channel
         channel_factors.append((u_k, s_k, vt_k))
 
     return reconstructed, channel_factors
-
-
-def reconstruct_from_factors(u_k, s_k, vt_k):
-    return (u_k * s_k) @ vt_k
-
-
-def reconstruct_color_from_factors(channel_factors):
-    channels = [reconstruct_from_factors(u_k, s_k, vt_k) for u_k, s_k, vt_k in channel_factors]
-    return np.stack(channels, axis=2)
 
 
 def image_to_base64_url(image_bytes, fmt):
@@ -57,46 +46,47 @@ def image_to_base64_url(image_bytes, fmt):
     return f"data:image/{fmt.lower()};base64,{encoded}"
 
 
-def bytes_to_download_url(file_bytes, mime_type):
-    encoded = base64.b64encode(file_bytes).decode("ascii")
-    return f"data:{mime_type};base64,{encoded}"
-
-
-def image_to_encoded_bytes(image, output_format, quality=None):
-    fmt = output_format.upper()
+def encode_image_bytes(image, fmt, quality=85):
+    fmt = fmt.upper()
     buffer = BytesIO()
 
     if fmt == "PNG":
         image.save(buffer, format="PNG", optimize=True, compress_level=9)
     elif fmt == "JPEG":
-        image.save(buffer, format="JPEG", optimize=True, quality=quality)
+        image.save(buffer, format="JPEG", quality=quality, optimize=True)
     elif fmt == "WEBP":
         image.save(buffer, format="WEBP", quality=quality, method=6)
     else:
-        raise ValueError("Unsupported output format.")
+        raise ValueError("Unsupported format.")
 
     return buffer.getvalue()
 
 
-def factors_to_npz_bytes(channel_factors, original_shape, k):
+def build_svd_npz_bytes(channel_factors, img_shape, k):
     (u_r, s_r, vt_r), (u_g, s_g, vt_g), (u_b, s_b, vt_b) = channel_factors
-
     buffer = BytesIO()
+    metadata = np.array(
+        [
+            f"shape={img_shape[0]}x{img_shape[1]}",
+            f"k={k}",
+            "mode=RGB",
+            "channels=3",
+            "version=1",
+        ],
+        dtype="U32",
+    )
     np.savez_compressed(
         buffer,
-        u_r=u_r.astype(np.float32),
-        s_r=s_r.astype(np.float32),
-        vt_r=vt_r.astype(np.float32),
-        u_g=u_g.astype(np.float32),
-        s_g=s_g.astype(np.float32),
-        vt_g=vt_g.astype(np.float32),
-        u_b=u_b.astype(np.float32),
-        s_b=s_b.astype(np.float32),
-        vt_b=vt_b.astype(np.float32),
-        original_shape=np.array(original_shape, dtype=np.int32),
-        k=np.array([k], dtype=np.int32),
-        channels=np.array([len(channel_factors)], dtype=np.int32),
-        version=np.array([1], dtype=np.int32),
+        u_r=u_r,
+        s_r=s_r,
+        vt_r=vt_r,
+        u_g=u_g,
+        s_g=s_g,
+        vt_g=vt_g,
+        u_b=u_b,
+        s_b=s_b,
+        vt_b=vt_b,
+        metadata=metadata,
     )
     return buffer.getvalue()
 
@@ -110,8 +100,7 @@ def human_readable_size(byte_count):
 
 
 def compression_stats(img_shape, k):
-    m, n = img_shape[:2]
-    channels = img_shape[2] if len(img_shape) == 3 else 1
+    m, n, channels = img_shape
     uncompressed_size = m * n * channels
     compressed_size = channels * k * (1 + m + n)
     ratio = compressed_size / uncompressed_size
@@ -121,21 +110,36 @@ def compression_stats(img_shape, k):
     }
 
 
-def percent_savings(original_bytes, candidate_bytes):
-    if original_bytes == 0:
-        return 0.0
-    return ((original_bytes - candidate_bytes) / original_bytes) * 100.0
+def file_size_stats(original_size, generated_size):
+    reduction_bytes = original_size - generated_size
+    reduction_pct = (reduction_bytes / original_size) * 100 if original_size else 0.0
+    return {
+        "reduction_bytes": reduction_bytes,
+        "reduction_pct": reduction_pct,
+    }
+
+
+def detect_mime(fmt):
+    return {
+        "PNG": "image/png",
+        "JPEG": "image/jpeg",
+        "WEBP": "image/webp",
+        "NPZ": "application/octet-stream",
+    }.get(fmt, "application/octet-stream")
 
 
 def store_result_once(result_payload):
     token = uuid.uuid4().hex
-    RESULT_CACHE[token] = result_payload
-
-    if len(RESULT_CACHE) > MAX_CACHED_RESULTS:
-        oldest_token = next(iter(RESULT_CACHE))
-        RESULT_CACHE.pop(oldest_token, None)
+    cache_set(token, result_payload)
 
     return token
+
+
+def cache_set(key, value):
+    RESULT_CACHE[key] = value
+    while len(RESULT_CACHE) > MAX_CACHED_RESULTS:
+        oldest_token = next(iter(RESULT_CACHE))
+        RESULT_CACHE.pop(oldest_token, None)
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -145,19 +149,19 @@ def index():
         "result": RESULT_CACHE.pop(result_token, None) if result_token else None,
         "error": None,
         "k": 50,
-        "output_format": "JPEG",
+        "format": "JPEG",
         "quality": 75,
     }
 
     if context["result"]:
         context["k"] = context["result"].get("k", 50)
-        context["output_format"] = context["result"].get("output_format", "JPEG")
+        context["format"] = context["result"].get("format", "JPEG")
         context["quality"] = context["result"].get("quality", 75)
 
     if request.method == "POST":
         image_file = request.files.get("image")
         k = request.form.get("k", "50")
-        output_format = request.form.get("output_format", "JPEG").upper()
+        output_format = request.form.get("format", "JPEG").upper()
         quality = request.form.get("quality", "75")
 
         if not image_file or image_file.filename == "":
@@ -176,8 +180,14 @@ def index():
             context["error"] = "Quality must be a number."
             return render_template("index.html", **context)
 
+        if output_format not in {"PNG", "JPEG", "WEBP"}:
+            context["error"] = "Output format must be PNG, JPEG, or WEBP."
+            return render_template("index.html", **context)
+
+        quality = max(30, min(95, quality))
+
         context["k"] = k
-        context["output_format"] = output_format
+        context["format"] = output_format
         context["quality"] = quality
 
         try:
@@ -187,16 +197,8 @@ def index():
                 return render_template("index.html", **context)
 
             original_file_size = len(file_bytes)
-            original_array = load_rgb_image(file_bytes)
-            m, n = original_array.shape[:2]
-
-            if output_format not in SUPPORTED_FORMATS:
-                context["error"] = "Unsupported output format selected."
-                return render_template("index.html", **context)
-
-            if output_format in {"JPEG", "WEBP"} and not (1 <= quality <= 95):
-                context["error"] = "Quality must be between 1 and 95 for JPEG/WebP."
-                return render_template("index.html", **context)
+            original_matrix = load_rgb_image(file_bytes)
+            m, n = original_matrix.shape[:2]
 
             if m * n > MAX_PIXELS:
                 context["error"] = "Image is too large. Try a smaller image for this demo UI."
@@ -207,30 +209,33 @@ def index():
                 context["error"] = f"k must be between 1 and {max_rank} for this image."
                 return render_template("index.html", **context)
 
-            _, channel_factors = compress_color_image_svd(original_array, k)
+            compressed_matrix, channel_factors = compress_image_svd(original_matrix, k)
+            compressed_matrix = np.clip(compressed_matrix, 0, 255)
 
-            round_trip_array = reconstruct_color_from_factors(channel_factors)
-            round_trip_array = np.clip(round_trip_array, 0, 255)
+            original_img = Image.fromarray(original_matrix.astype("uint8"), mode="RGB")
+            compressed_img = Image.fromarray(compressed_matrix.astype("uint8"), mode="RGB")
+            original_png = encode_image_bytes(original_img, "PNG")
+            compressed_bytes = encode_image_bytes(compressed_img, output_format, quality)
+            svd_npz_bytes = build_svd_npz_bytes(channel_factors, original_matrix.shape, k)
 
-            original_img = Image.fromarray(original_array.astype("uint8"), mode="RGB")
-            compressed_img = Image.fromarray(round_trip_array.astype("uint8"), mode="RGB")
-            original_png = image_to_encoded_bytes(original_img, "PNG")
-            compressed_bytes = image_to_encoded_bytes(
-                compressed_img,
-                output_format,
-                quality=quality if output_format in {"JPEG", "WEBP"} else None,
-            )
-            npz_bytes = factors_to_npz_bytes(channel_factors, original_array.shape, k)
-
-            stats = compression_stats(original_array.shape, k)
+            stats = compression_stats(original_matrix.shape, k)
             compressed_file_size = len(compressed_bytes)
-            npz_file_size = len(npz_bytes)
+            npz_file_size = len(svd_npz_bytes)
+            image_file_stats = file_size_stats(original_file_size, compressed_file_size)
+            npz_file_stats = file_size_stats(original_file_size, npz_file_size)
 
-            image_savings_pct = percent_savings(original_file_size, compressed_file_size)
-            npz_savings_pct = percent_savings(original_file_size, npz_file_size)
-
-            extension = "jpg" if output_format == "JPEG" else output_format.lower()
-            image_mime = "image/jpeg" if output_format == "JPEG" else f"image/{output_format.lower()}"
+            image_token = uuid.uuid4().hex
+            npz_token = uuid.uuid4().hex
+            cache_set(f"image:{image_token}", {
+                "bytes": compressed_bytes,
+                "mime": detect_mime(output_format),
+                "name": f"compressed_k{k}.{output_format.lower()}",
+            })
+            cache_set(f"npz:{npz_token}", {
+                "bytes": svd_npz_bytes,
+                "mime": detect_mime("NPZ"),
+                "name": f"compressed_factors_k{k}.npz",
+            })
 
             result_payload = {
                 "original": image_to_base64_url(original_png, "PNG"),
@@ -242,15 +247,15 @@ def index():
                 "percentage": f"{stats['percentage']:.1f}",
                 "original_size": human_readable_size(original_file_size),
                 "compressed_size": human_readable_size(compressed_file_size),
+                "compressed_delta": f"{image_file_stats['reduction_pct']:.1f}%",
                 "npz_size": human_readable_size(npz_file_size),
-                "compressed_savings": f"{image_savings_pct:+.1f}%",
-                "npz_savings": f"{npz_savings_pct:+.1f}%",
-                "output_format": output_format,
+                "npz_delta": f"{npz_file_stats['reduction_pct']:.1f}%",
+                "download_name": f"compressed_k{k}.{output_format.lower()}",
+                "npz_name": f"compressed_factors_k{k}.npz",
+                "download_image_url": url_for("download_result", kind="image", token=image_token),
+                "download_npz_url": url_for("download_result", kind="npz", token=npz_token),
+                "format": output_format,
                 "quality": quality,
-                "download_name": f"compressed_k{k}.{extension}",
-                "download_npz_name": f"svd_factors_k{k}.npz",
-                "compressed_download": bytes_to_download_url(compressed_bytes, image_mime),
-                "npz_download": bytes_to_download_url(npz_bytes, "application/octet-stream"),
                 "k": k,
             }
 
@@ -260,6 +265,20 @@ def index():
             context["error"] = "Could not process this file. Please upload a valid image."
 
     return render_template("index.html", **context)
+
+
+@app.route("/download/<kind>/<token>")
+def download_result(kind, token):
+    cache_key = f"{kind}:{token}"
+    payload = RESULT_CACHE.get(cache_key)
+    if not payload:
+        return Response("Download has expired. Please recompress the image.", status=404)
+
+    return Response(
+        payload["bytes"],
+        mimetype=payload["mime"],
+        headers={"Content-Disposition": f"attachment; filename={payload['name']}"},
+    )
 
 
 if __name__ == "__main__":

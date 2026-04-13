@@ -38,12 +38,16 @@
   const formatSelect = document.getElementById("format-select");
   const qualityField = document.getElementById("quality-field");
 
-  if (formatSelect && qualityField) {
-    const syncQualityVisibility = function () {
-      qualityField.style.display = formatSelect.value === "PNG" ? "none" : "";
-    };
+  function syncQualityVisibility() {
+    if (!formatSelect || !qualityField) {
+      return;
+    }
+    const isLossy = formatSelect.value === "JPEG" || formatSelect.value === "WEBP";
+    qualityField.style.display = isLossy ? "block" : "none";
+  }
 
-    formatSelect.addEventListener("change", syncQualityVisibility);
+  if (formatSelect && qualityField) {
     syncQualityVisibility();
+    formatSelect.addEventListener("change", syncQualityVisibility);
   }
 })();

@@ -27,7 +27,7 @@
       <section class="hero card reveal">
         <h1>SVD Image Compressor</h1>
         <p class="hero-copy">
-          Upload an image, choose rank <strong>k</strong>, and preview a grayscale
+          Upload an image, choose rank <strong>k</strong>, and preview a color-preserving
           low-rank reconstruction using singular value decomposition.
         </p>
       </section>
@@ -57,21 +57,21 @@
 
           <label class="field">
             <span>Output format</span>
-            <select id="format-select" name="output_format">
-              <option value="JPEG" {% if output_format == 'JPEG' %}selected{% endif %}>JPEG (lossy)</option>
-              <option value="WEBP" {% if output_format == 'WEBP' %}selected{% endif %}>WebP (lossy)</option>
-              <option value="PNG" {% if output_format == 'PNG' %}selected{% endif %}>PNG (lossless)</option>
+            <select name="format" id="format-select">
+              <option value="JPEG" {% if format == "JPEG" %}selected{% endif %}>JPEG (lossy)</option>
+              <option value="WEBP" {% if format == "WEBP" %}selected{% endif %}>WebP (lossy)</option>
+              <option value="PNG" {% if format == "PNG" %}selected{% endif %}>PNG (lossless)</option>
             </select>
           </label>
 
-          <label class="field" id="quality-field" {% if output_format == 'PNG' %}style="display: none;"{% endif %}>
+          <label class="field" id="quality-field" data-initial-format="{{ format }}">
             <span>Quality</span>
             <div class="k-controls">
               <input
                 id="quality-slider"
                 type="range"
                 name="quality"
-                min="1"
+                min="30"
                 max="95"
                 value="{{ quality }}"
                 oninput="document.getElementById('quality-value').textContent = this.value"
@@ -109,23 +109,15 @@
           </div>
           <div>
             <p class="stat-label">Compressed size</p>
-            <p class="stat-value">{{ result.compressed_size }}</p>
-          </div>
-          <div>
-            <p class="stat-label">Compressed savings</p>
-            <p class="stat-value">{{ result.compressed_savings }}</p>
+            <p class="stat-value">{{ result.compressed_size }} ({{ result.compressed_delta }})</p>
           </div>
           <div>
             <p class="stat-label">SVD NPZ size</p>
-            <p class="stat-value">{{ result.npz_size }}</p>
-          </div>
-          <div>
-            <p class="stat-label">SVD NPZ savings</p>
-            <p class="stat-value">{{ result.npz_savings }}</p>
+            <p class="stat-value">{{ result.npz_size }} ({{ result.npz_delta }})</p>
           </div>
           <div>
             <p class="stat-label">Output format</p>
-            <p class="stat-value">{{ result.output_format }}</p>
+            <p class="stat-value">{{ result.format }}</p>
           </div>
           <div>
             <p class="stat-label">Quality</p>
@@ -135,16 +127,16 @@
 
         <div class="image-grid">
           <article class="image-card">
-            <h2>Original (grayscale)</h2>
-            <img src="{{ result.original }}" alt="Original grayscale image" />
+            <h2>Original</h2>
+            <img src="{{ result.original }}" alt="Original image" />
           </article>
           <article class="image-card">
-            <h2>Compressed (k={{ k }}, {{ result.output_format }})</h2>
-            <img src="{{ result.compressed }}" alt="Compressed grayscale image" />
-            <a href="{{ result.compressed_download }}" download="{{ result.download_name }}" class="btn-download"
+            <h2>Compressed (k={{ k }})</h2>
+            <img src="{{ result.compressed }}" alt="Compressed image" />
+            <a href="{{ result.download_image_url }}" download="{{ result.download_name }}" class="btn-download"
               >Download compressed image</a
             >
-            <a href="{{ result.npz_download }}" download="{{ result.download_npz_name }}" class="btn-download"
+            <a href="{{ result.download_npz_url }}" download="{{ result.npz_name }}" class="btn-download"
               >Download SVD factors (.npz)</a
             >
           </article>
